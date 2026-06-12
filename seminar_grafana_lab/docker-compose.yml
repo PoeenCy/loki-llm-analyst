@@ -1,0 +1,80 @@
+networks:
+
+  seminar-net:
+    driver: bridge
+
+volumes:
+  loki-data:
+  grafana-data:
+
+services:
+  # ─── LOKI: Log Aggregation Backend ───────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: seminar-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
+    networks:
+      - seminar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── PROMTAIL: Log Shipper / Parser ──────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: seminar-promtail
+    depends_on:
+      loki:
+        condition: service_healthy
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./access.log:/var/log/apache/access.log:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - seminar-net
+
+  # ─── GRAFANA: Visualization Dashboard ────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: seminar-grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=seminar2026
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_USERS_VIEWERS_CAN_EDIT=true
+      - GF_EXPLORE_ENABLED=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - seminar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── CADDY: Reverse Proxy & Auto HTTPS ─────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: seminar-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    command: sh -c 'caddy reverse-proxy --from https://$$DOMAIN --to http://grafana:3000'
+    networks:
+      - seminar-net
+    depends_on:
+      grafana:
+        condition: service_healthy

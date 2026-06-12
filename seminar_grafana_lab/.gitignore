@@ -1,0 +1,15 @@
+# Logs
+*.log
+access.log
+
+# Config files with sensitive tokens
+mcp-grafana.json
+mcp_config.json
+
+# Environment variables
+.env
+.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
