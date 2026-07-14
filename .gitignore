@@ -1,14 +1,15 @@
-# Logs
+# Logs — ignore all EXCEPT the sample log for the lab
 *.log
-access.log
+!seminar_grafana_lab/access.log
 
 # Config files with sensitive tokens
 mcp-grafana.json
 mcp_config.json
 
-# Environment variables
+# Environment variables — ignore .env but keep .env.example for contributors
 .env
 .env.*
+!.env.example
 
 # OS generated files
 .DS_Store
